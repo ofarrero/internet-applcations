@@ -1,0 +1,182 @@
+<html>
+    <head>
+        <title>5 Day Forecast!</title>
+    </head>
+
+<body>
+    <div id="app">
+        <h1>5 Day Forecast</h1>
+        <h3>Where are you off to?</h3>
+        <input v-model="location" placeholder="i.e. Paris,France"><br><br>
+        <button v-on:click="GetForecast">Get Forecast</button>
+        <br>
+        <p v-if="weatherError">Are you sure that was a place? There was an error: {{weatherError}}</p>
+
+        <h3>Will it Rain?</h3>
+        <div v-if="rain">Yes! Bring an Umbrella</div>
+        <div v-if="!rain">No Rain Expected</div>
+
+        <h3>Whats the temperature like?</h3>
+        <p>You should pack for:</p>
+        <ul>
+            <li v-if="cold">Cold Weather</li>
+            <li v-if="warm">Warm Weather</li>
+            <li v-if="hot">Hot Weather</li>
+        </ul>
+
+        <h3>5 Day Forecast for {{location}}:</h3>
+        <table>
+            <thead>
+                <tr>
+                    <td>Date</td>
+                    <td>Temperature (°C)</td>
+                    <td>Wind Speed (m/s)</td>
+                    <td>Rainfall (mm)</td>
+                </tr>
+            </thead>
+            <tbody>
+                <tr v-for= "day of dailyWeather" :key="index">
+                    <td>{{day.date}}</td>
+                    <td>{{day.temp}} °C</td>
+                    <td>{{day.wind}} m/s</td>
+                    <td>{{day.rain}} mm</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Should I bring a mask?</h3>
+        <div v-if="mask">You should bring a mask, there is a high level of polution</div>
+        <div v-else>You don't need a mask the polution level is not very high</div>
+        <p v-if="airError">There was an error: {{airError}}</p>
+
+    </div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vue/1.0.26/vue.min.js"></script>
+
+<script>
+const BASE_URL = "http://localhost:8081/5dayforecast/"
+var myViewModel = new Vue({
+  el: '#app',
+  data:{
+      location: '',
+      rain:false,
+      cold:false,
+      warm:false,
+      hot:false,
+      long:0,
+      lat:0,
+      mask:false,
+      weatherError:'',
+      airError:'',
+      dailyWeather:[]
+  },
+  methods: {GetForecast: function(){
+    this.resetData();
+    console.log("Getting Forecast")
+    let prom = fetch(BASE_URL+this.location)
+    prom.then (response => response.json())
+        .then(response=>{
+            if(response.error){
+                this.weatherError=response.error
+                this.dailyWeather = []
+            }else{
+                this.long = response.locationData.long;
+                this.lat = response.locationData.lat;
+                (response.weatherData).forEach(element => {
+                    console.log("Sorting Info")
+                    this.cold = this.cold || element.temp<10
+                    this.warm = this.warm || (element.temp>=10 && element.temp<20)
+                    this.hot = this.hot || element.temp>=20
+                    this.rain = this.rain || element.rain>0
+                })
+                this.dailyWeather = dailyForecast(response.weatherData)
+                this.GetAir()
+            }   
+        })
+    },
+    resetData: function(){
+        console.log("Resetting Data")
+        this.rain=false
+        this.cold=false 
+        this.warm=false
+        this.hot=false
+        this.mask=false
+        this.airError = ''
+        this.weatherError = ''
+    },
+    GetAir: function(){
+        Lat = this.lat.toString()
+        Long = this.long.toString()
+        console.log("Getting Air Data");
+        let prom = fetch(BASE_URL+Lat+'/'+Long)
+        prom.then (response => response.json())
+            .then(response=>{
+                if(response.message){
+                    this.airError = response.message
+                }else{
+                    console.log("Reading Air Data");
+                    (response.airData).forEach(element=>{
+                    this.mask = this.mask || element.pm25>10
+                    })
+                }
+                
+             })
+    }
+  }
+});
+
+function dailyForecast(weatherData){
+    console.log("Getting Average Daily Information")
+    var daily = []
+    index = 0
+    var currDate = ""
+    var avgRain = 0
+    var avgTemp = 0
+    var avgWind = 0
+    var counter = 0
+    weatherData.forEach(element =>{
+        newDay = element.date.split(' ')[0]
+        counter++
+        if(currDate==""){
+            currDate=newDay
+        }
+        if(newDay!=currDate && index<5){
+            avgRain=(avgRain/counter).toFixed(2)
+            avgTemp=(avgTemp/counter).toFixed(0)
+            avgWind=(avgWind/counter).toFixed(2)
+            daily[index] = {'date':currDate, 'temp':avgTemp, 'wind':avgWind, 'rain':avgRain}
+            index++
+            currDate=newDay
+            counter = 0
+            avgRain = 0
+            avgTemp = 0
+            avgWind = 0
+        }
+        avgTemp += element.temp
+        avgRain += element.rain
+        avgWind += element.wind
+        
+    })
+    return daily
+}
+
+function maskData(long, lat){
+
+
+}
+
+</script>
+</body>
+<style>
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    
+    td, th {
+      border: 1px solid #000000;
+      text-align: left;
+      padding: 5px;
+    }
+</style>
+</html>
